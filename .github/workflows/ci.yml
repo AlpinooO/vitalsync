@@ -63,21 +63,42 @@ jobs:
           echo "DB_USER=postgres" >> .env
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
 
-      - name: Démarrer les services docker compose
-        run: docker compose up -d --build
+      - name: Démarrer la base de données
+        run: docker compose up -d database
+
+      - name: Attendre que PostgreSQL soit prêt
+        run: |
+          echo "Attente de PostgreSQL..."
+          for i in $(seq 1 30); do
+            if docker compose exec -T database pg_isready -U postgres; then
+              echo "PostgreSQL prêt !"
+              break
+            fi
+            echo "Tentative $i/30..."
+            sleep 2
+          done
+
+      - name: Démarrer les services backend et frontend
+        run: docker compose up -d backend frontend
 
       - name: Attendre que le backend soit prêt
-        run: sleep 30
+        run: sleep 15
 
       - name: Health check backend
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check échoué : HTTP $STATUS"
-            docker compose logs backend
-            exit 1
-          fi
-          echo "Health check OK : HTTP $STATUS"
+          echo "Vérification de santé du backend..."
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check OK : HTTP $STATUS"
+              exit 0
+            fi
+            echo "Tentative $i/10 - HTTP $STATUS"
+            sleep 2
+          done
+          echo "Health check échoué après 10 tentatives"
+          docker compose logs backend
+          exit 1
 
       - name: Arrêter les services
         if: always()
