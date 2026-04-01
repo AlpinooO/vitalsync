@@ -58,10 +58,12 @@ jobs:
 
       - name: Créer le fichier .env
         run: |
-          echo "DB_PORT=5432" >> .env
-          echo "DB_NAME=vitalsync" >> .env
-          echo "DB_USER=postgres" >> .env
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+          cat > .env <<EOF
+          DB_PORT=5432
+          DB_NAME=vitalsync
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          EOF
 
       - name: Démarrer la base de données
         run: docker compose up -d database

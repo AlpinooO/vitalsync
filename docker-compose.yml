@@ -15,8 +15,7 @@ services:
     networks:
       - vitalsync-network
     depends_on:
-      database:
-        condition: service_healthy
+      - database
  
   frontend:
     build: ./frontend
@@ -33,15 +32,15 @@ services:
     container_name: vitalsync-db
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME:-vitalsync}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - vitalsync-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 3s
       retries: 10
