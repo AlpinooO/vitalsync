@@ -1,0 +1,107 @@
+name: CI/CD VitalSync
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-and-test:
+    name: Lint & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Installation des dépendances
+        working-directory: backend
+        run: npm ci
+
+      - name: Tests unitaires Jest
+        working-directory: backend
+        run: npm test
+
+  build:
+    name: Build Docker
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Build backend
+        run: docker build -t vitalsync-backend ./backend
+
+      - name: Build frontend
+        run: docker build -t vitalsync-frontend ./frontend
+
+  deploy-staging:
+    name: Deploy Staging
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Créer le fichier .env
+        run: |
+          cat > .env <<EOF
+          DB_PORT=5432
+          DB_NAME=vitalsync
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          EOF
+
+      - name: Démarrer la base de données
+        run: docker compose up -d database
+
+      - name: Attendre que PostgreSQL soit prêt
+        run: |
+          echo "Attente de PostgreSQL..."
+          for i in $(seq 1 30); do
+            if docker compose exec -T database pg_isready -U postgres; then
+              echo "PostgreSQL prêt !"
+              break
+            fi
+            echo "Tentative $i/30..."
+            sleep 2
+          done
+
+      - name: Démarrer les services backend et frontend
+        run: docker compose up -d backend frontend
+
+      - name: Attendre que le backend soit prêt
+        run: sleep 15
+
+      - name: Health check backend
+        run: |
+          echo "Vérification de santé du backend..."
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check OK : HTTP $STATUS"
+              exit 0
+            fi
+            echo "Tentative $i/10 - HTTP $STATUS"
+            sleep 2
+          done
+          echo "Health check échoué après 10 tentatives"
+          docker compose logs backend
+          exit 1
+
+      - name: Arrêter les services
+        if: always()
+        run: docker compose down
