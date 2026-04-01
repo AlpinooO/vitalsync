@@ -67,7 +67,7 @@ jobs:
         run: docker compose up -d --build
 
       - name: Attendre que le backend soit prêt
-        run: sleep 10
+        run: sleep 30
 
       - name: Health check backend
         run: |
