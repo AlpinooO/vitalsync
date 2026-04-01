@@ -63,8 +63,8 @@ jobs:
           echo "DB_USER=postgres" >> .env
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
 
-      - name: Démarrer les services docker-compose
-        run: docker-compose up -d --build
+      - name: Démarrer les services docker compose
+        run: docker compose up -d --build
 
       - name: Attendre que le backend soit prêt
         run: sleep 10
@@ -74,11 +74,11 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
           if [ "$STATUS" != "200" ]; then
             echo "Health check échoué : HTTP $STATUS"
-            docker-compose logs backend
+            docker compose logs backend
             exit 1
           fi
           echo "Health check OK : HTTP $STATUS"
 
       - name: Arrêter les services
         if: always()
-        run: docker-compose down
+        run: docker compose down
